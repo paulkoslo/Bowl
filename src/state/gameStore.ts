@@ -2,18 +2,19 @@ import { create } from 'zustand';
 import type {
   Card,
   GameSession,
+  PhaseState,
   Player,
-  RoundPhase,
   Team,
   TurnAction,
   TurnState,
 } from '@/game';
 import {
+  createEmptyPhaseResults,
   getNextPhase,
   getOtherTeamId,
   initPhaseStateForTeams,
   isPhaseComplete,
-  PHASE_ORDER,
+  snapshotPhaseResult,
 } from '@/game';
 import {
   clearAllGameData,
@@ -104,6 +105,33 @@ const defaultWizard = () => ({
   wizardCards: [] as WizardCard[],
   wizardSelectedPlayerId: null as string | null,
 });
+
+function createEmptyPassedBuckets(teamIds: string[]): Record<string, string[]> {
+  const result: Record<string, string[]> = {};
+  for (const id of teamIds) result[id] = [];
+  return result;
+}
+
+function drawFromMainBowl(phaseState: PhaseState): {
+  nextPhaseState: PhaseState;
+  nextCardId?: string;
+} {
+  const mainBowl = phaseState.mainBowl ?? [];
+  if (mainBowl.length === 0) {
+    return {
+      nextPhaseState: phaseState,
+      nextCardId: undefined,
+    };
+  }
+  const nextCardId = mainBowl[0];
+  return {
+    nextPhaseState: {
+      ...phaseState,
+      mainBowl: mainBowl.slice(1),
+    },
+    nextCardId,
+  };
+}
 
 export const useGameStore = create<GameState>((set, get) => ({
   currentGame: null,
@@ -200,6 +228,7 @@ export const useGameStore = create<GameState>((set, get) => ({
       turn: null,
       settings: { turnSeconds: 60 },
       phaseState,
+      phaseResults: createEmptyPhaseResults(),
       gameStatus: 'playing',
     };
 
@@ -279,42 +308,31 @@ export const useGameStore = create<GameState>((set, get) => ({
       teamPlayers.length > 0
         ? teamPlayers[0]?.id
         : undefined;
-    const passedPile = state.passedToTeam[activeTeamId] ?? [];
-    const mainPile = state.mainBowl ?? [];
-    const fromPassed = passedPile.length > 0;
-    const pile = fromPassed ? [...passedPile] : [...mainPile];
-    if (pile.length === 0) {
+    const { nextPhaseState, nextCardId } = drawFromMainBowl(state);
+    if (!nextCardId) {
       get().advancePhaseIfComplete();
       return;
     }
-    const currentCardId = pile.shift()!;
-    const drawnFrom: 'main' | string = fromPassed ? activeTeamId : 'main';
-    let newState;
-    if (fromPassed) {
-      newState = {
-        ...state,
-        passedToTeam: { ...state.passedToTeam, [activeTeamId]: pile },
-      };
-    } else {
-      newState = {
-        ...state,
-        mainBowl: pile,
-      };
-    }
+
+    const nextState: PhaseState = {
+      ...nextPhaseState,
+      // Legacy bucket is unused under current rules, keep it normalized/empty.
+      passedToTeam: createEmptyPassedBuckets(currentGame.teams.map((t) => t.id)),
+    };
+
     const turn: TurnState = {
       activeTeamId,
       activePlayerId,
       secondsRemaining: currentGame.settings.turnSeconds,
       isRunning: true,
       startedAt: Date.now(),
-      currentCardId,
-      drawnFrom,
+      currentCardId: nextCardId,
       history: [],
     };
     set({
       currentGame: {
         ...currentGame,
-        phaseState: { ...currentGame.phaseState, [phase]: newState },
+        phaseState: { ...currentGame.phaseState, [phase]: nextState },
         turn,
         lastTeamId: activeTeamId,
       },
@@ -343,17 +361,26 @@ export const useGameStore = create<GameState>((set, get) => ({
   endTurn: (reason: 'time' | 'manual') => {
     const { currentGame } = get();
     if (!currentGame?.turn) return;
+    const phase = currentGame.phase;
+    const phaseState = currentGame.phaseState[phase];
+    const currentCardId = currentGame.turn.currentCardId;
+    const nextPhaseState = currentCardId
+      ? {
+          ...phaseState,
+          mainBowl: [currentCardId, ...(phaseState.mainBowl ?? [])],
+          passedToTeam: createEmptyPassedBuckets(currentGame.teams.map((t) => t.id)),
+        }
+      : phaseState;
+
     set({
       currentGame: {
         ...currentGame,
-        turn: {
-          ...currentGame.turn,
-          isRunning: false,
-          secondsRemaining: 0,
-        },
+        phaseState: { ...currentGame.phaseState, [phase]: nextPhaseState },
+        turn: null,
       },
     });
     get().persistCurrentGame();
+    get().advancePhaseIfComplete();
     log('endTurn()', reason);
   },
 
@@ -362,12 +389,8 @@ export const useGameStore = create<GameState>((set, get) => ({
     if (!currentGame?.turn) return;
     const phase = currentGame.phase;
     const state = currentGame.phaseState[phase];
-    const activeTeamId = currentGame.turn.activeTeamId;
-    const passedPile = state.passedToTeam[activeTeamId] ?? [];
-    const mainPile = state.mainBowl ?? [];
-    const fromPassed = passedPile.length > 0;
-    const pile = fromPassed ? [...passedPile] : [...mainPile];
-    if (pile.length === 0) {
+    const { nextPhaseState, nextCardId } = drawFromMainBowl(state);
+    if (!nextCardId) {
       set({
         currentGame: {
           ...currentGame,
@@ -383,25 +406,18 @@ export const useGameStore = create<GameState>((set, get) => ({
       get().advancePhaseIfComplete();
       return;
     }
-    const currentCardId = pile.shift()!;
-    const drawnFrom: 'main' | string = fromPassed ? activeTeamId : 'main';
-    let newState;
-    if (fromPassed) {
-      newState = {
-        ...state,
-        passedToTeam: { ...state.passedToTeam, [activeTeamId]: pile },
-      };
-    } else {
-      newState = {
-        ...state,
-        mainBowl: pile,
-      };
-    }
+
     set({
       currentGame: {
         ...currentGame,
-        phaseState: { ...currentGame.phaseState, [phase]: newState },
-        turn: { ...currentGame.turn, currentCardId, drawnFrom },
+        phaseState: {
+          ...currentGame.phaseState,
+          [phase]: {
+            ...nextPhaseState,
+            passedToTeam: createEmptyPassedBuckets(currentGame.teams.map((t) => t.id)),
+          },
+        },
+        turn: { ...currentGame.turn, currentCardId: nextCardId },
       },
     });
     get().persistCurrentGame();
@@ -414,24 +430,38 @@ export const useGameStore = create<GameState>((set, get) => ({
     const state = currentGame.phaseState[phase];
     const activeTeamId = currentGame.turn.activeTeamId;
     const cardId = currentGame.turn.currentCardId;
-    const drawnFrom = currentGame.turn.drawnFrom ?? 'main';
     const scored = [...(state.scoredByTeam[activeTeamId] ?? []), cardId];
-    const action: TurnAction = { type: 'gotIt', cardId, teamId: activeTeamId, phase, drawnFrom };
-    const history = [...currentGame.turn.history, action].slice(-TURN_HISTORY_LIMIT);
+    const { nextPhaseState, nextCardId } = drawFromMainBowl(state);
+    const action: TurnAction = {
+      type: 'gotIt',
+      cardId,
+      teamId: activeTeamId,
+      phase,
+      nextCardId,
+    };
+    const history = [...currentGame.turn.history, action].slice(
+      -TURN_HISTORY_LIMIT
+    );
     const newState = {
-      ...state,
+      ...nextPhaseState,
+      passedToTeam: createEmptyPassedBuckets(currentGame.teams.map((t) => t.id)),
       scoredByTeam: { ...state.scoredByTeam, [activeTeamId]: scored },
     };
     set({
       currentGame: {
         ...currentGame,
         phaseState: { ...currentGame.phaseState, [phase]: newState },
-        turn: { ...currentGame.turn, currentCardId: undefined, drawnFrom: undefined, history },
+        turn: {
+          ...currentGame.turn,
+          currentCardId: nextCardId,
+          isRunning: nextCardId ? currentGame.turn.isRunning : false,
+          secondsRemaining: nextCardId ? currentGame.turn.secondsRemaining : 0,
+          history,
+        },
       },
     });
     get().persistCurrentGame();
-    get().drawNextCard();
-    get().advancePhaseIfComplete();
+    if (!nextCardId) get().advancePhaseIfComplete();
   },
 
   pass: () => {
@@ -442,32 +472,37 @@ export const useGameStore = create<GameState>((set, get) => ({
     const activeTeamId = currentGame.turn.activeTeamId;
     const otherTeamId = getOtherTeamId(currentGame, activeTeamId);
     const cardId = currentGame.turn.currentCardId;
-    const drawnFrom = currentGame.turn.drawnFrom ?? 'main';
-    const otherPile = state.passedToTeam[otherTeamId] ?? [];
-    const newOtherPile = [...otherPile, cardId];
+    const credited = [...(state.scoredByTeam[otherTeamId] ?? []), cardId];
+    const { nextPhaseState, nextCardId } = drawFromMainBowl(state);
     const action: TurnAction = {
       type: 'passToOther',
       cardId,
       fromTeamId: activeTeamId,
       toTeamId: otherTeamId,
       phase,
-      drawnFrom,
+      nextCardId,
     };
     const history = [...currentGame.turn.history, action].slice(-TURN_HISTORY_LIMIT);
     const newState = {
-      ...state,
-      passedToTeam: { ...state.passedToTeam, [otherTeamId]: newOtherPile },
+      ...nextPhaseState,
+      passedToTeam: createEmptyPassedBuckets(currentGame.teams.map((t) => t.id)),
+      scoredByTeam: { ...state.scoredByTeam, [otherTeamId]: credited },
     };
     set({
       currentGame: {
         ...currentGame,
         phaseState: { ...currentGame.phaseState, [phase]: newState },
-        turn: { ...currentGame.turn, currentCardId: undefined, drawnFrom: undefined, history },
+        turn: {
+          ...currentGame.turn,
+          currentCardId: nextCardId,
+          isRunning: nextCardId ? currentGame.turn.isRunning : false,
+          secondsRemaining: nextCardId ? currentGame.turn.secondsRemaining : 0,
+          history,
+        },
       },
     });
     get().persistCurrentGame();
-    get().drawNextCard();
-    get().advancePhaseIfComplete();
+    if (!nextCardId) get().advancePhaseIfComplete();
   },
 
   undo: () => {
@@ -477,65 +512,52 @@ export const useGameStore = create<GameState>((set, get) => ({
     const state = currentGame.phaseState[phase];
     const history = [...currentGame.turn.history];
     const action = history.pop()!;
+
+    const rewoundMainBowl = [...(state.mainBowl ?? [])];
+    if (action.nextCardId) {
+      if (currentGame.turn.currentCardId !== action.nextCardId) {
+        // Prevent corruption if state and history drifted unexpectedly.
+        return;
+      }
+      rewoundMainBowl.unshift(action.nextCardId);
+    }
+
     if (action.type === 'gotIt') {
       const scored = state.scoredByTeam[action.teamId] ?? [];
       const idx = scored.lastIndexOf(action.cardId);
       if (idx < 0) return;
       const newScored = [...scored];
       newScored.splice(idx, 1);
-      const putBack = [action.cardId];
-      let newState;
-      if (action.drawnFrom === 'main') {
-        newState = {
-          ...state,
-          scoredByTeam: { ...state.scoredByTeam, [action.teamId]: newScored },
-          mainBowl: [...putBack, ...(state.mainBowl ?? [])],
-        };
-      } else {
-        const pile = state.passedToTeam[action.drawnFrom] ?? [];
-        newState = {
-          ...state,
-          scoredByTeam: { ...state.scoredByTeam, [action.teamId]: newScored },
-          passedToTeam: { ...state.passedToTeam, [action.drawnFrom]: [...putBack, ...pile] },
-        };
-      }
+      const newState = {
+        ...state,
+        mainBowl: rewoundMainBowl,
+        passedToTeam: createEmptyPassedBuckets(currentGame.teams.map((t) => t.id)),
+        scoredByTeam: { ...state.scoredByTeam, [action.teamId]: newScored },
+      };
       set({
         currentGame: {
           ...currentGame,
           phaseState: { ...currentGame.phaseState, [phase]: newState },
-          turn: { ...currentGame.turn, currentCardId: action.cardId, drawnFrom: action.drawnFrom, history },
+          turn: { ...currentGame.turn, currentCardId: action.cardId, history },
         },
       });
     } else {
-      const toPile = state.passedToTeam[action.toTeamId] ?? [];
-      const toIdx = toPile.lastIndexOf(action.cardId);
-      if (toIdx < 0) return;
-      const newToPile = [...toPile];
-      newToPile.splice(toIdx, 1);
-      const putBack = [action.cardId];
-      let newState;
-      if (action.drawnFrom === 'main') {
-        newState = {
-          ...state,
-          mainBowl: [...putBack, ...(state.mainBowl ?? [])],
-          passedToTeam: { ...state.passedToTeam, [action.toTeamId]: newToPile },
-        };
-      } else {
-        const fromPile = state.passedToTeam[action.drawnFrom] ?? [];
-        newState = {
-          ...state,
-          passedToTeam: {
-            ...state.passedToTeam,
-            [action.drawnFrom]: [...putBack, ...fromPile],
-            [action.toTeamId]: newToPile,
-          },
-        };
-      }
+      const credited = state.scoredByTeam[action.toTeamId] ?? [];
+      const idx = credited.lastIndexOf(action.cardId);
+      if (idx < 0) return;
+      const newCredited = [...credited];
+      newCredited.splice(idx, 1);
+      const newState = {
+        ...state,
+        mainBowl: rewoundMainBowl,
+        passedToTeam: createEmptyPassedBuckets(currentGame.teams.map((t) => t.id)),
+        scoredByTeam: { ...state.scoredByTeam, [action.toTeamId]: newCredited },
+      };
       set({
         currentGame: {
           ...currentGame,
           phaseState: { ...currentGame.phaseState, [phase]: newState },
-          turn: { ...currentGame.turn, currentCardId: action.cardId, drawnFrom: action.drawnFrom, history },
+          turn: { ...currentGame.turn, currentCardId: action.cardId, history },
         },
       });
     }
@@ -547,10 +569,16 @@ export const useGameStore = create<GameState>((set, get) => ({
     if (!currentGame || !isPhaseComplete(currentGame, currentGame.phase)) return;
     const phase = currentGame.phase;
     const next = getNextPhase(phase);
+    const finalizedPhaseResult = snapshotPhaseResult(currentGame, phase);
+    const nextPhaseResults = {
+      ...currentGame.phaseResults,
+      [phase]: finalizedPhaseResult,
+    };
     if (next) {
       set({
         currentGame: {
           ...currentGame,
+          phaseResults: nextPhaseResults,
           phaseCompleteModal: phase,
           turn: null,
         },
@@ -559,6 +587,7 @@ export const useGameStore = create<GameState>((set, get) => ({
       set({
         currentGame: {
           ...currentGame,
+          phaseResults: nextPhaseResults,
           gameStatus: 'finished',
           gameOverModal: true,
           turn: null,

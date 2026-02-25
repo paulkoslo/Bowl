@@ -4,9 +4,9 @@ import {
   Alert,
   AppState,
   AppStateStatus,
-  Modal,
   StyleSheet,
   Text,
+  useWindowDimensions,
   View,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
@@ -22,13 +22,23 @@ import {
   getCardById,
   getCardsInBowlCount,
   getOtherTeamId,
+  getTeamPhaseResult,
   getTeamPhaseScore,
   getTeamTotalScore,
   type GameSession,
   type RoundPhase,
 } from '@/game';
 import { useGameStore } from '@/state';
-import { colors, minTouchTargetSize, spacing, typography } from '@/theme';
+import {
+  colors,
+  minTouchTargetSize,
+  motion,
+  radius,
+  shadows,
+  spacing,
+  typography,
+} from '@/theme';
+import { generateId } from '@/utils';
 
 const DEBUG = true;
 const log = (step: string, detail?: string) => {
@@ -44,6 +54,7 @@ const PHASE_LABELS: Record<RoundPhase, string> = {
 export function GameScreen() {
   const router = useRouter();
   const navigation = useNavigation();
+  const { width } = useWindowDimensions();
   const currentGame = useGameStore((s) => s.currentGame);
   const persistCurrentGame = useGameStore((s) => s.persistCurrentGame);
   const resetAll = useGameStore((s) => s.resetAll);
@@ -57,14 +68,61 @@ export function GameScreen() {
   const dismissGameOverModal = useGameStore((s) => s.dismissGameOverModal);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  const [flyingWord, setFlyingWord] = useState<{
-    text: string;
-    from: LayoutRect;
-    to: LayoutRect;
-  } | null>(null);
+  const [flyingWords, setFlyingWords] = useState<
+    Array<{
+      id: string;
+      text: string;
+      seed: number;
+      from: LayoutRect;
+      to: LayoutRect;
+    }>
+  >([]);
+  const overlayHostRef = useRef<View>(null);
   const cardAreaRef = useRef<View>(null);
   const bowlARef = useRef<View>(null);
   const bowlBRef = useRef<View>(null);
+
+  const pushFlyingWord = useCallback((
+    text: string,
+    targetRef: React.RefObject<View | null>
+  ) => {
+    requestAnimationFrame(() => {
+      const overlayHost = overlayHostRef.current;
+      const cardArea = cardAreaRef.current;
+      const bowl = targetRef.current;
+      if (!overlayHost || !cardArea || !bowl) return;
+
+      cardArea.measureLayout(
+        overlayHost,
+        (cardX, cardY, cardW, cardH) => {
+          bowl.measureLayout(
+            overlayHost,
+            (bowlX, bowlY, bowlW, bowlH) => {
+              // Keep only recent particles for performance on rapid taps.
+              setFlyingWords((prev) => [
+                ...prev.slice(-5),
+                {
+                  id: generateId(),
+                  text,
+                  seed: Math.random(),
+                  from: { x: cardX, y: cardY, width: cardW, height: cardH },
+                  to: { x: bowlX, y: bowlY, width: bowlW, height: bowlH },
+                },
+              ]);
+            },
+            () => {}
+          );
+        },
+        () => {}
+      );
+    });
+  }, []);
+
+  const removeFlyingWord = useCallback((id: string) => {
+    setFlyingWords((prev) => prev.filter((w) => w.id !== id));
+  }, []);
+
+  const lastActionAtRef = useRef(0);
 
   useEffect(() => {
     log('mounted', currentGame ? `gameId=${currentGame.id}` : 'no current game');
@@ -211,7 +269,7 @@ export function GameScreen() {
           <View style={styles.modalScores}>
             {currentGame.teams.map((t) => (
               <Text key={t.id} style={styles.modalScoreRow}>
-                {t.name}: {getTeamPhaseScore(currentGame, t.id, phase)} this round
+                {t.name}: {getTeamPhaseResult(currentGame, t.id, phase)} this round
               </Text>
             ))}
           </View>
@@ -232,44 +290,34 @@ export function GameScreen() {
   const teamA = currentGame.teams[0];
   const teamB = currentGame.teams[1];
   const canUndo = (turn?.history.length ?? 0) > 0;
+  const compactButtons = width < 390;
+  const compactBowls = width < 360;
 
   const runPassWithAnimation = useCallback(() => {
     const word = currentCard?.text;
-    if (!word || !currentCard || !teamA || !teamB) return;
-    const otherId = getOtherTeamId(currentGame, turn!.activeTeamId);
+    if (!word || !currentCard || !teamA || !teamB || !turn) return;
+    if (Date.now() - lastActionAtRef.current < motion.buttonBufferMs) return;
+    lastActionAtRef.current = Date.now();
+    const otherId = getOtherTeamId(currentGame, turn.activeTeamId);
     const bowlRef = otherId === teamA.id ? bowlARef : bowlBRef;
-    cardAreaRef.current?.measureInWindow((cardX, cardY, cardW, cardH) => {
-      bowlRef.current?.measureInWindow((bowlX, bowlY, bowlW, bowlH) => {
-        pass();
-        setFlyingWord({
-          text: word,
-          from: { x: cardX, y: cardY, width: cardW, height: cardH },
-          to: { x: bowlX, y: bowlY, width: bowlW, height: bowlH },
-        });
-      });
-    });
-  }, [currentCard, currentGame, pass, teamA, teamB, turn]);
+    pass();
+    pushFlyingWord(word, bowlRef);
+  }, [currentCard, currentGame, pass, pushFlyingWord, teamA, teamB, turn]);
 
   const runGotItWithAnimation = useCallback(() => {
     const word = currentCard?.text;
-    if (!word || !currentCard || !teamA || !teamB) return;
-    const activeId = turn!.activeTeamId;
+    if (!word || !currentCard || !teamA || !teamB || !turn) return;
+    if (Date.now() - lastActionAtRef.current < motion.buttonBufferMs) return;
+    lastActionAtRef.current = Date.now();
+    const activeId = turn.activeTeamId;
     const bowlRef = activeId === teamA.id ? bowlARef : bowlBRef;
-    cardAreaRef.current?.measureInWindow((cardX, cardY, cardW, cardH) => {
-      bowlRef.current?.measureInWindow((bowlX, bowlY, bowlW, bowlH) => {
-        gotIt();
-        setFlyingWord({
-          text: word,
-          from: { x: cardX, y: cardY, width: cardW, height: cardH },
-          to: { x: bowlX, y: bowlY, width: bowlW, height: bowlH },
-        });
-      });
-    });
-  }, [currentCard, gotIt, teamA, teamB, turn]);
+    gotIt();
+    pushFlyingWord(word, bowlRef);
+  }, [currentCard, gotIt, pushFlyingWord, teamA, teamB, turn]);
 
   return (
     <ScreenContainer>
-      <View style={styles.content}>
+      <View ref={overlayHostRef} style={styles.content} collapsable={false}>
         <View style={styles.header}>
           <View style={styles.phasePill}>
             <Text style={styles.phasePillText}>
@@ -277,10 +325,10 @@ export function GameScreen() {
             </Text>
           </View>
           <Text style={styles.helperText}>
-            Pass gives the card to the other team. One bowl this round — each word once.
+            Pass sends the card directly to the other team's bowl.
           </Text>
           <Text style={styles.helperText}>
-            Cards in bowl: {getCardsInBowlCount(currentGame, currentGame.phase)}
+            Cards in main bowl: {getCardsInBowlCount(currentGame, currentGame.phase)}
             {turn?.currentCardId ? ' (+ 1 in hand)' : ''}
           </Text>
         </View>
@@ -302,17 +350,19 @@ export function GameScreen() {
         </View>
 
         <View style={styles.controls}>
-          <View style={styles.row}>
+          <View style={[styles.row, compactButtons && styles.rowStacked]}>
             <SecondaryButton
-              title="PASS → OTHER TEAM"
+              title="PASS"
               onPress={runPassWithAnimation}
               disabled={!currentCard}
+              style={styles.actionButton}
             />
-            <View style={styles.controlSpacer} />
+            <View style={[styles.controlSpacer, compactButtons && styles.controlSpacerStacked]} />
             <PrimaryButton
               title="GOT IT"
               onPress={runGotItWithAnimation}
               disabled={!currentCard}
+              style={styles.actionButton}
             />
           </View>
           <View style={styles.undoRow}>
@@ -320,52 +370,45 @@ export function GameScreen() {
               title="UNDO"
               onPress={undo}
               disabled={!canUndo}
+              style={styles.fullWidthButton}
             />
           </View>
           <View style={styles.startRow}>
             {!isTurnRunning ? (
-              <PrimaryButton title="Start Turn" onPress={startTurn} />
+              <PrimaryButton title="Start Turn" onPress={startTurn} style={styles.fullWidthButton} />
             ) : (
-              <SecondaryButton title="End Turn" onPress={handleEndTurn} />
+              <SecondaryButton title="End Turn" onPress={handleEndTurn} style={styles.fullWidthButton} />
             )}
           </View>
         </View>
 
-        <View style={styles.scoresRow}>
+        <View style={[styles.scoresRow, compactBowls && styles.scoresRowStacked]}>
           <View ref={bowlARef} style={styles.bowlWrapper} collapsable={false}>
             <BowlScoreBlock
               teamName={teamA?.name ?? 'Team A'}
-              totalScore={getTeamTotalScore(currentGame, teamA?.id ?? '')}
-              inBowlCount={
-                (getTeamPhaseScore(currentGame, teamA?.id ?? '', currentGame.phase) ?? 0) +
-                (currentGame.phaseState[currentGame.phase].passedToTeam[teamA?.id ?? '']?.length ?? 0)
-              }
+              inBowlCount={getTeamPhaseScore(currentGame, teamA?.id ?? '', currentGame.phase)}
             />
           </View>
           <View ref={bowlBRef} style={styles.bowlWrapper} collapsable={false}>
             <BowlScoreBlock
               teamName={teamB?.name ?? 'Team B'}
-              totalScore={getTeamTotalScore(currentGame, teamB?.id ?? '')}
-              inBowlCount={
-                (getTeamPhaseScore(currentGame, teamB?.id ?? '', currentGame.phase) ?? 0) +
-                (currentGame.phaseState[currentGame.phase].passedToTeam[teamB?.id ?? '']?.length ?? 0)
-              }
+              inBowlCount={getTeamPhaseScore(currentGame, teamB?.id ?? '', currentGame.phase)}
             />
           </View>
         </View>
 
-        <Modal visible={!!flyingWord} transparent animationType="none" statusBarTranslucent>
-          {flyingWord && (
-            <View style={StyleSheet.absoluteFill} pointerEvents="none">
-              <FlyingWord
-                text={flyingWord.text}
-                from={flyingWord.from}
-                to={flyingWord.to}
-                onDone={() => setFlyingWord(null)}
-              />
-            </View>
-          )}
-        </Modal>
+        <View style={styles.flyingLayer} pointerEvents="none">
+          {flyingWords.map((word) => (
+            <FlyingWord
+              key={word.id}
+              text={word.text}
+              seed={word.seed}
+              from={word.from}
+              to={word.to}
+              onDone={() => removeFlyingWord(word.id)}
+            />
+          ))}
+        </View>
 
         <View style={styles.footer}>
           <SecondaryButton title="End Game" onPress={handleEndGame} />
@@ -395,9 +438,16 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingHorizontal: spacing.lg,
     paddingTop: spacing.lg,
+    position: 'relative',
   },
   header: {
     marginBottom: spacing.md,
+    padding: spacing.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radius.lg,
+    backgroundColor: colors.surface,
+    ...shadows.surfaceSoft,
   },
   phasePill: {
     alignSelf: 'flex-start',
@@ -415,10 +465,11 @@ const styles = StyleSheet.create({
   helperText: {
     fontSize: typography.captionSize,
     color: colors.textMuted,
+    lineHeight: typography.captionLineHeight,
   },
   timerBlock: {
     alignItems: 'center',
-    marginBottom: spacing.lg,
+    marginBottom: spacing.md,
   },
   timerText: {
     fontSize: 56,
@@ -429,13 +480,16 @@ const styles = StyleSheet.create({
     minHeight: minTouchTargetSize * 3,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: colors.surface,
-    borderRadius: 16,
+    backgroundColor: colors.surfaceElevated,
+    borderRadius: radius.xl,
+    borderWidth: 1,
+    borderColor: colors.border,
     padding: spacing.lg,
-    marginBottom: spacing.xl,
+    marginBottom: spacing.lg,
+    ...shadows.surfaceSoft,
   },
   cardText: {
-    fontSize: 28,
+    fontSize: 30,
     fontWeight: '700',
     color: colors.text,
     textAlign: 'center',
@@ -445,15 +499,31 @@ const styles = StyleSheet.create({
     color: colors.textMuted,
   },
   controls: {
-    marginBottom: spacing.xl,
+    marginBottom: spacing.lg,
+    padding: spacing.md,
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
   },
   row: {
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'stretch',
     marginBottom: spacing.md,
   },
   controlSpacer: {
     width: spacing.md,
+  },
+  rowStacked: {
+    flexDirection: 'column',
+    marginBottom: spacing.sm,
+  },
+  controlSpacerStacked: {
+    width: 0,
+    height: spacing.sm,
+  },
+  actionButton: {
+    flex: 1,
   },
   undoRow: {
     marginBottom: spacing.md,
@@ -461,37 +531,28 @@ const styles = StyleSheet.create({
   startRow: {
     marginBottom: spacing.sm,
   },
+  fullWidthButton: {
+    width: '100%',
+  },
   scoresRow: {
     flexDirection: 'row',
-    gap: spacing.lg,
+    gap: spacing.md,
     marginBottom: spacing.lg,
+  },
+  scoresRowStacked: {
+    flexDirection: 'column',
   },
   bowlWrapper: {
     flex: 1,
   },
-  scoreBlock: {
-    flex: 1,
-    backgroundColor: colors.surface,
-    borderRadius: 12,
-    padding: spacing.md,
-  },
-  scoreLabel: {
-    fontSize: typography.captionSize,
-    color: colors.textMuted,
-    marginBottom: spacing.xs,
-  },
-  scoreValue: {
-    fontSize: typography.titleSize,
-    fontWeight: '700',
-    color: colors.text,
-  },
-  scorePhase: {
-    fontSize: typography.captionSize,
-    color: colors.textMuted,
-    marginTop: spacing.xs,
+  flyingLayer: {
+    ...StyleSheet.absoluteFillObject,
+    zIndex: 30,
   },
   footer: {
+    marginTop: 'auto',
     alignItems: 'center',
+    paddingTop: spacing.xs,
   },
   title: {
     fontSize: typography.titleSize,

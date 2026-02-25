@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useCallback, useRef, useState } from 'react';
 import {
   FlatList,
   Pressable,
@@ -13,7 +13,15 @@ import {
   TextInput,
 } from '@/components';
 import { useGameStore, type WizardPlayer } from '@/state';
-import { colors, minTouchTargetSize, spacing, typography } from '@/theme';
+import {
+  colors,
+  minTouchTargetSize,
+  motion,
+  radius,
+  shadows,
+  spacing,
+  typography,
+} from '@/theme';
 import { sanitizePlayerName } from '@/utils';
 
 const MAX_PLAYER_NAME = 24;
@@ -35,6 +43,15 @@ export function PlayersStep({ onNext, onBack, onSkip }: PlayersStepProps) {
   const setWizardStep = useGameStore((s) => s.setWizardStep);
 
   const trimmed = sanitizePlayerName(name, MAX_PLAYER_NAME);
+  const lastPressByKeyRef = useRef<Record<string, number>>({});
+
+  const runBuffered = useCallback((key: string, action: () => void) => {
+    const now = Date.now();
+    const last = lastPressByKeyRef.current[key] ?? 0;
+    if (now - last < motion.buttonBufferMs) return;
+    lastPressByKeyRef.current[key] = now;
+    action();
+  }, []);
 
   const handleAdd = () => {
     if (trimmed.length === 0) return;
@@ -56,8 +73,10 @@ export function PlayersStep({ onNext, onBack, onSkip }: PlayersStepProps) {
         {wizardTeamNames[item.teamIndex]}
       </Text>
       <Pressable
-        onPress={() => removeWizardPlayer(item.id)}
-        style={styles.removeBtn}
+        onPress={() =>
+          runBuffered(`remove-${item.id}`, () => removeWizardPlayer(item.id))
+        }
+        style={({ pressed }) => [styles.removeBtn, pressed && styles.removeBtnPressed]}
         hitSlop={8}
       >
         <Text style={styles.removeText}>Remove</Text>
@@ -85,8 +104,12 @@ export function PlayersStep({ onNext, onBack, onSkip }: PlayersStepProps) {
           />
           <View style={styles.teamToggle}>
             <Pressable
-              onPress={() => setTeamIndex(0)}
-              style={[styles.toggleBtn, teamIndex === 0 && styles.toggleBtnActive]}
+              onPress={() => runBuffered('team-0', () => setTeamIndex(0))}
+              style={({ pressed }) => [
+                styles.toggleBtn,
+                teamIndex === 0 && styles.toggleBtnActive,
+                pressed && styles.toggleBtnPressed,
+              ]}
             >
               <Text
                 style={[
@@ -98,8 +121,12 @@ export function PlayersStep({ onNext, onBack, onSkip }: PlayersStepProps) {
               </Text>
             </Pressable>
             <Pressable
-              onPress={() => setTeamIndex(1)}
-              style={[styles.toggleBtn, teamIndex === 1 && styles.toggleBtnActive]}
+              onPress={() => runBuffered('team-1', () => setTeamIndex(1))}
+              style={({ pressed }) => [
+                styles.toggleBtn,
+                teamIndex === 1 && styles.toggleBtnActive,
+                pressed && styles.toggleBtnPressed,
+              ]}
             >
               <Text
                 style={[
@@ -123,6 +150,7 @@ export function PlayersStep({ onNext, onBack, onSkip }: PlayersStepProps) {
           keyExtractor={(item) => item.id}
           renderItem={renderPlayer}
           style={styles.list}
+          contentContainerStyle={wizardPlayers.length === 0 ? styles.listContentEmpty : undefined}
           ListEmptyComponent={
             <Text style={styles.empty}>No players yet. Add some or skip.</Text>
           }
@@ -130,9 +158,7 @@ export function PlayersStep({ onNext, onBack, onSkip }: PlayersStepProps) {
 
         <View style={styles.actions}>
           <SecondaryButton title="Skip" onPress={onSkip} />
-          <View style={styles.spacer} />
           <SecondaryButton title="Back" onPress={onBack} />
-          <View style={styles.spacer} />
           <PrimaryButton title="Next" onPress={handleNext} />
         </View>
       </View>
@@ -159,6 +185,12 @@ const styles = StyleSheet.create({
   },
   addSection: {
     marginBottom: spacing.md,
+    backgroundColor: colors.surface,
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    borderColor: colors.border,
+    padding: spacing.md,
+    ...shadows.surfaceSoft,
   },
   inputLabel: {
     fontSize: typography.captionSize,
@@ -179,11 +211,14 @@ const styles = StyleSheet.create({
     minHeight: minTouchTargetSize,
     justifyContent: 'center',
     alignItems: 'center',
-    borderRadius: 8,
+    borderRadius: radius.md,
     backgroundColor: colors.border,
   },
   toggleBtnActive: {
     backgroundColor: colors.secondary,
+  },
+  toggleBtnPressed: {
+    opacity: 0.85,
   },
   toggleText: {
     fontSize: typography.bodySize,
@@ -197,13 +232,19 @@ const styles = StyleSheet.create({
     flex: 1,
     marginBottom: spacing.md,
   },
+  listContentEmpty: {
+    flexGrow: 1,
+    justifyContent: 'center',
+  },
   playerRow: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingVertical: spacing.sm,
     paddingHorizontal: spacing.md,
-    backgroundColor: colors.surface,
-    borderRadius: 8,
+    backgroundColor: colors.surfaceElevated,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.border,
     marginBottom: spacing.sm,
   },
   playerName: {
@@ -219,10 +260,16 @@ const styles = StyleSheet.create({
   removeBtn: {
     paddingVertical: spacing.xs,
     paddingHorizontal: spacing.sm,
+    borderRadius: radius.full,
+    backgroundColor: '#F8E3DD',
+  },
+  removeBtnPressed: {
+    opacity: 0.8,
   },
   removeText: {
     fontSize: typography.captionSize,
     color: colors.primary,
+    fontWeight: '700',
   },
   empty: {
     fontSize: typography.bodySize,
@@ -233,8 +280,5 @@ const styles = StyleSheet.create({
   actions: {
     width: '100%',
     gap: spacing.sm,
-  },
-  spacer: {
-    height: spacing.sm,
   },
 });

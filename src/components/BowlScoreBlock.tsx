@@ -1,12 +1,10 @@
 import React from 'react';
 import { LayoutChangeEvent, StyleSheet, Text, View } from 'react-native';
-import { colors, spacing, typography } from '@/theme';
+import { colors, radius, shadows, spacing, typography } from '@/theme';
 
 export interface BowlScoreBlockProps {
   teamName: string;
-  /** Total game points (for winner). */
-  totalScore: number;
-  /** Cards in this team's bowl this round = scored + passed to them. One counter for Got It & Pass. */
+  /** Cards in this team's bowl for the current round. */
   inBowlCount: number;
   onLayout?: (event: LayoutChangeEvent) => void;
 }
@@ -16,7 +14,6 @@ export interface BowlScoreBlockProps {
  */
 export function BowlScoreBlock({
   teamName,
-  totalScore,
   inBowlCount,
   onLayout,
 }: BowlScoreBlockProps) {
@@ -30,7 +27,6 @@ export function BowlScoreBlock({
       <Text style={styles.scoreLabel}>{teamName}</Text>
       <Text style={styles.inBowlValue}>{inBowlCount}</Text>
       <Text style={styles.inBowlLabel}>in bowl</Text>
-      <Text style={styles.totalLine}>Total points: {totalScore}</Text>
     </View>
   );
 }
@@ -38,20 +34,23 @@ export function BowlScoreBlock({
 const styles = StyleSheet.create({
   wrapper: {
     flex: 1,
-    backgroundColor: colors.surface,
-    borderRadius: 16,
+    backgroundColor: colors.surfaceElevated,
+    borderRadius: radius.lg,
     padding: spacing.md,
     alignItems: 'center',
     minHeight: 100,
     justifyContent: 'center',
-    borderWidth: 2,
+    borderWidth: 1,
     borderColor: colors.border,
+    ...shadows.surfaceSoft,
   },
   bowlSymbol: {
     width: 48,
     height: 48,
     borderRadius: 24,
     backgroundColor: colors.background,
+    borderWidth: 1,
+    borderColor: colors.border,
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: spacing.xs,
@@ -68,18 +67,14 @@ const styles = StyleSheet.create({
     fontSize: typography.captionSize,
     color: colors.textMuted,
     marginBottom: spacing.xs,
+    fontWeight: '600',
   },
   inBowlValue: {
-    fontSize: typography.titleSize,
-    fontWeight: '700',
+    fontSize: typography.titleSize + 2,
+    fontWeight: '800',
     color: colors.text,
   },
   inBowlLabel: {
-    fontSize: typography.captionSize,
-    color: colors.textMuted,
-    marginTop: spacing.xs,
-  },
-  totalLine: {
     fontSize: typography.captionSize,
     color: colors.textMuted,
     marginTop: spacing.xs,

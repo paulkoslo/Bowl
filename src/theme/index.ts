@@ -75,3 +75,32 @@ export const colors = {
   // Borders & dividers
   border: '#E8E2DA',
 } as const;
+
+export const shadows = {
+  buttonPrimary: {
+    shadowColor: '#9D4D37',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.18,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  buttonSecondary: {
+    shadowColor: '#3F6E59',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.14,
+    shadowRadius: 7,
+    elevation: 2,
+  },
+  surfaceSoft: {
+    shadowColor: '#2D2A26',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    elevation: 2,
+  },
+} as const;
+
+export const motion = {
+  buttonBufferMs: 90,
+  flightDurationMs: 250,
+} as const;

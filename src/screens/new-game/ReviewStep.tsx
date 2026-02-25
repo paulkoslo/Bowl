@@ -2,7 +2,7 @@ import React from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { PrimaryButton, ScreenContainer, SecondaryButton } from '@/components';
 import { useGameStore } from '@/state';
-import { colors, spacing, typography } from '@/theme';
+import { colors, radius, shadows, spacing, typography } from '@/theme';
 
 interface ReviewStepProps {
   onStartGame: () => void;
@@ -38,9 +38,8 @@ export function ReviewStep({ onStartGame, onBack }: ReviewStepProps) {
         </View>
 
         <View style={styles.actions}>
-          <SecondaryButton title="Back" onPress={onBack} />
-          <View style={styles.spacer} />
-          <PrimaryButton title="Start Game" onPress={onStartGame} />
+          <SecondaryButton title="Back" onPress={onBack} style={styles.actionButton} />
+          <PrimaryButton title="Start Game" onPress={onStartGame} style={styles.actionButton} />
         </View>
       </View>
     </ScreenContainer>
@@ -65,10 +64,13 @@ const styles = StyleSheet.create({
     marginBottom: spacing.xl,
   },
   summary: {
-    backgroundColor: colors.surface,
-    borderRadius: 12,
+    backgroundColor: colors.surfaceElevated,
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    borderColor: colors.border,
     padding: spacing.lg,
     marginBottom: spacing.xl,
+    ...shadows.surfaceSoft,
   },
   summaryRow: {
     marginBottom: spacing.sm,
@@ -85,8 +87,9 @@ const styles = StyleSheet.create({
   actions: {
     width: '100%',
     flexDirection: 'row',
+    gap: spacing.md,
   },
-  spacer: {
-    width: spacing.md,
+  actionButton: {
+    flex: 1,
   },
 });

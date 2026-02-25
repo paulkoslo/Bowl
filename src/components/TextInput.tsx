@@ -4,7 +4,14 @@ import {
   TextInput as RNTextInput,
   type TextInputProps,
 } from 'react-native';
-import { colors, minTouchTargetSize, radius, spacing, typography } from '@/theme';
+import {
+  colors,
+  minTouchTargetSize,
+  radius,
+  shadows,
+  spacing,
+  typography,
+} from '@/theme';
 
 export function TextInput({
   style,
@@ -30,5 +37,6 @@ const styles = StyleSheet.create({
     minHeight: minTouchTargetSize,
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.sm,
+    ...shadows.surfaceSoft,
   },
 });

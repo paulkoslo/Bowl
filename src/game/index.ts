@@ -1,6 +1,8 @@
 export type {
   Card,
   GameSession,
+  PhaseResult,
+  PhaseResults,
   PhaseState,
   Player,
   RoundPhase,
@@ -9,14 +11,17 @@ export type {
   TurnState,
 } from './models';
 export {
+  createEmptyPhaseResults,
   getCardById,
   getCardsInBowlCount,
   getNextPhase,
+  getTeamPhaseResult,
   getTeamPhaseScore,
   getTeamTotalScore,
   getOtherTeamId,
   initPhaseStateForTeams,
   isPhaseComplete,
+  snapshotPhaseResult,
   migrateSession,
   PHASE_ORDER,
 } from './engine';

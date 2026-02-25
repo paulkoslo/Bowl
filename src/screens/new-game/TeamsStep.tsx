@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { PrimaryButton, ScreenContainer, TextInput } from '@/components';
 import { useGameStore } from '@/state';
-import { colors, spacing, typography } from '@/theme';
+import { colors, radius, shadows, spacing, typography } from '@/theme';
 import { sanitizeTeamName } from '@/utils';
 
 const MAX_TEAM_NAME = 20;
@@ -79,6 +79,12 @@ const styles = StyleSheet.create({
   },
   inputs: {
     marginBottom: spacing.xl,
+    backgroundColor: colors.surface,
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    borderColor: colors.border,
+    padding: spacing.md,
+    ...shadows.surfaceSoft,
   },
   spacer: {
     height: spacing.md,

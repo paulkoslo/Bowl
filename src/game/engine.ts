@@ -1,4 +1,10 @@
-import type { Card, GameSession, PhaseState, RoundPhase } from './models';
+import type {
+  Card,
+  GameSession,
+  PhaseResult,
+  PhaseState,
+  RoundPhase,
+} from './models';
 import { shuffle } from '@/utils/shuffle';
 
 export const PHASE_ORDER: RoundPhase[] = ['describe', 'oneWord', 'charades'];
@@ -35,12 +41,51 @@ export function initPhaseStateForTeams(
   };
 }
 
+export function createEmptyPhaseResults(): GameSession['phaseResults'] {
+  return {
+    describe: null,
+    oneWord: null,
+    charades: null,
+  };
+}
+
+function mergeUniqueCardIds(...lists: string[][]): string[] {
+  const seen = new Set<string>();
+  const merged: string[] = [];
+  for (const list of lists) {
+    for (const id of list) {
+      if (!seen.has(id)) {
+        seen.add(id);
+        merged.push(id);
+      }
+    }
+  }
+  return merged;
+}
+
+export function snapshotPhaseResult(
+  session: GameSession,
+  phase: RoundPhase
+): PhaseResult {
+  const teamIds = session.teams.map((t) => t.id);
+  const scored = session.phaseState[phase].scoredByTeam;
+  const result: PhaseResult = {};
+  for (const teamId of teamIds) {
+    result[teamId] = scored[teamId]?.length ?? 0;
+  }
+  return result;
+}
+
 /** Total score for a team across all phases (count of scored card IDs). */
 export function getTeamTotalScore(session: GameSession, teamId: string): number {
   let total = 0;
   for (const phase of PHASE_ORDER) {
-    const arr = session.phaseState[phase].scoredByTeam[teamId];
-    if (arr) total += arr.length;
+    const finalized = session.phaseResults[phase]?.[teamId];
+    if (typeof finalized === 'number') {
+      total += finalized;
+    } else {
+      total += session.phaseState[phase].scoredByTeam[teamId]?.length ?? 0;
+    }
   }
   return total;
 }
@@ -54,31 +99,43 @@ export function getTeamPhaseScore(
   return session.phaseState[phase].scoredByTeam[teamId]?.length ?? 0;
 }
 
-/** Phase is complete when main bowl and both passed buckets are empty. */
-export function isPhaseComplete(session: GameSession, phase: RoundPhase): boolean {
-  const state = session.phaseState[phase];
-  if ((state.mainBowl?.length ?? 0) > 0) return false;
-  const teamIds = session.teams.map((t) => t.id);
-  return teamIds.every(
-    (id) => (state.passedToTeam[id]?.length ?? 0) === 0
-  );
+/** Finalized phase score if available; otherwise current in-progress phase score. */
+export function getTeamPhaseResult(
+  session: GameSession,
+  teamId: string,
+  phase: RoundPhase
+): number {
+  const finalized = session.phaseResults[phase]?.[teamId];
+  if (typeof finalized === 'number') return finalized;
+  return getTeamPhaseScore(session, teamId, phase);
 }
 
-/** Ensure phase state has both team keys for passedToTeam and scoredByTeam. */
+/** Phase is complete when main bowl is empty. */
+export function isPhaseComplete(session: GameSession, phase: RoundPhase): boolean {
+  const state = session.phaseState[phase];
+  return (state.mainBowl?.length ?? 0) === 0;
+}
+
+/** Ensure phase state has both team keys and migrate legacy passed cards into team bowls. */
 function normalizePhaseState(
   state: PhaseState,
   teamAId: string,
   teamBId: string
 ): PhaseState {
+  const teamAPassedLegacy = state.passedToTeam?.[teamAId] ?? [];
+  const teamBPassedLegacy = state.passedToTeam?.[teamBId] ?? [];
+  const teamAScored = state.scoredByTeam?.[teamAId] ?? [];
+  const teamBScored = state.scoredByTeam?.[teamBId] ?? [];
+
   return {
     mainBowl: Array.isArray(state.mainBowl) ? state.mainBowl : [],
     passedToTeam: {
-      [teamAId]: state.passedToTeam?.[teamAId] ?? [],
-      [teamBId]: state.passedToTeam?.[teamBId] ?? [],
+      [teamAId]: [],
+      [teamBId]: [],
     },
     scoredByTeam: {
-      [teamAId]: state.scoredByTeam?.[teamAId] ?? [],
-      [teamBId]: state.scoredByTeam?.[teamBId] ?? [],
+      [teamAId]: mergeUniqueCardIds(teamAScored, teamAPassedLegacy),
+      [teamBId]: mergeUniqueCardIds(teamBScored, teamBPassedLegacy),
     },
   };
 }
@@ -95,28 +152,44 @@ export function getCardById(session: GameSession, cardId: string): Card | undefi
   return session.deck.find((c) => c.id === cardId);
 }
 
-/** Count cards still in play this phase (main bowl + passed to both teams). Single bowl: each word appears once. */
+/** Count cards still in play this phase (main bowl only). */
 export function getCardsInBowlCount(session: GameSession, phase: RoundPhase): number {
   const state = session.phaseState[phase];
-  const main = state.mainBowl?.length ?? 0;
-  const teamIds = session.teams.map((t) => t.id);
-  const passed = teamIds.reduce((sum, id) => sum + (state.passedToTeam[id]?.length ?? 0), 0);
-  return main + passed;
+  return state.mainBowl?.length ?? 0;
 }
 
 /** Migrate old phaseState (drawPileByTeam) to new (mainBowl + passedToTeam). */
 function migratePhaseStateFromDrawPileByTeam(
-  old: { describe: { drawPileByTeam: Record<string, string[]>; scoredByTeam: Record<string, string[]> }; oneWord: { drawPileByTeam: Record<string, string[]>; scoredByTeam: Record<string, string[]> }; charades: { drawPileByTeam: Record<string, string[]>; scoredByTeam: Record<string, string[]> } },
+  old: {
+    describe: {
+      drawPileByTeam: Record<string, string[]>;
+      scoredByTeam: Record<string, string[]>;
+    };
+    oneWord: {
+      drawPileByTeam: Record<string, string[]>;
+      scoredByTeam: Record<string, string[]>;
+    };
+    charades: {
+      drawPileByTeam: Record<string, string[]>;
+      scoredByTeam: Record<string, string[]>;
+    };
+  },
   teamAId: string,
   teamBId: string
 ): GameSession['phaseState'] {
   const migrateOne = (phase: keyof typeof old) => {
     const p = old[phase];
-    const mainBowl = p.drawPileByTeam[teamAId] ?? [];
+    const mainBowl = mergeUniqueCardIds(
+      p.drawPileByTeam?.[teamAId] ?? [],
+      p.drawPileByTeam?.[teamBId] ?? []
+    );
     return {
       mainBowl: [...mainBowl],
       passedToTeam: { [teamAId]: [], [teamBId]: [] },
-      scoredByTeam: { ...(p.scoredByTeam ?? {}), [teamAId]: p.scoredByTeam?.[teamAId] ?? [], [teamBId]: p.scoredByTeam?.[teamBId] ?? [] },
+      scoredByTeam: {
+        [teamAId]: p.scoredByTeam?.[teamAId] ?? [],
+        [teamBId]: p.scoredByTeam?.[teamBId] ?? [],
+      },
     };
   };
   return {
@@ -124,6 +197,46 @@ function migratePhaseStateFromDrawPileByTeam(
     oneWord: migrateOne('oneWord'),
     charades: migrateOne('charades'),
   };
+}
+
+type LegacyPhase = {
+  drawPileByTeam: Record<string, string[]>;
+  scoredByTeam: Record<string, string[]>;
+};
+
+type LegacyPhaseState = {
+  describe: LegacyPhase;
+  oneWord: LegacyPhase;
+  charades: LegacyPhase;
+};
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === 'object';
+}
+
+function normalizePhaseResult(
+  value: unknown,
+  teamIds: string[]
+): PhaseResult | null {
+  if (!isRecord(value)) return null;
+  const result: PhaseResult = {};
+  for (const teamId of teamIds) {
+    const raw = value[teamId];
+    result[teamId] = typeof raw === 'number' && Number.isFinite(raw) ? raw : 0;
+  }
+  return result;
+}
+
+function isModernPhaseState(value: unknown): value is GameSession['phaseState'] {
+  if (!isRecord(value)) return false;
+  const describe = value.describe;
+  return isRecord(describe) && Array.isArray(describe.mainBowl);
+}
+
+function isLegacyPhaseState(value: unknown): value is LegacyPhaseState {
+  if (!isRecord(value)) return false;
+  const describe = value.describe;
+  return isRecord(describe) && isRecord(describe.drawPileByTeam);
 }
 
 /** Migrate old session format to new (phaseState, settings, turn shape). */
@@ -137,18 +250,19 @@ export function migrateSession(raw: unknown): GameSession {
   const deck = (s.deck as GameSession['deck']) ?? [];
   const teamAId = teams[0]?.id ?? 'teamA';
   const teamBId = teams[1]?.id ?? 'teamB';
+  const teamIds = [teamAId, teamBId];
   const cardIds = deck.map((c: Card) => c.id);
 
-  const rawPhaseState = s.phaseState as GameSession['phaseState'] | undefined;
+  const rawPhaseState = s.phaseState as unknown;
   let phaseState: GameSession['phaseState'];
-  if (rawPhaseState?.describe?.mainBowl != null) {
+  if (isModernPhaseState(rawPhaseState)) {
     // Normalize so each phase has both team keys in passedToTeam and scoredByTeam
     phaseState = {
       describe: normalizePhaseState(rawPhaseState.describe, teamAId, teamBId),
       oneWord: normalizePhaseState(rawPhaseState.oneWord, teamAId, teamBId),
       charades: normalizePhaseState(rawPhaseState.charades, teamAId, teamBId),
     };
-  } else if (rawPhaseState?.describe?.drawPileByTeam != null) {
+  } else if (isLegacyPhaseState(rawPhaseState)) {
     phaseState = migratePhaseStateFromDrawPileByTeam(rawPhaseState, teamAId, teamBId);
   } else {
     phaseState = {
@@ -174,9 +288,30 @@ export function migrateSession(raw: unknown): GameSession {
       isRunning: Boolean(rawTurn.isRunning),
       startedAt: typeof rawTurn.startedAt === 'number' ? rawTurn.startedAt : Date.now(),
       currentCardId: rawTurn.currentCardId,
-      drawnFrom: rawTurn.drawnFrom ?? 'main',
-      history: Array.isArray(rawTurn.history) ? rawTurn.history : [],
+      history: Array.isArray(rawTurn.history)
+        ? (rawTurn.history as NonNullable<GameSession['turn']>['history'])
+        : [],
     };
+  }
+
+  const phaseResults = createEmptyPhaseResults();
+  const rawPhaseResults = s.phaseResults as unknown;
+  if (isRecord(rawPhaseResults)) {
+    phaseResults.describe = normalizePhaseResult(rawPhaseResults.describe, teamIds);
+    phaseResults.oneWord = normalizePhaseResult(rawPhaseResults.oneWord, teamIds);
+    phaseResults.charades = normalizePhaseResult(rawPhaseResults.charades, teamIds);
+  }
+
+  // Backfill missing snapshots for already-complete phases in older saves.
+  for (const p of PHASE_ORDER) {
+    if (phaseResults[p]) continue;
+    if ((phaseState[p].mainBowl?.length ?? 0) === 0) {
+      const result: PhaseResult = {};
+      for (const teamId of teamIds) {
+        result[teamId] = phaseState[p].scoredByTeam[teamId]?.length ?? 0;
+      }
+      phaseResults[p] = result;
+    }
   }
 
   const migrated: GameSession = {
@@ -189,6 +324,7 @@ export function migrateSession(raw: unknown): GameSession {
     turn,
     settings,
     phaseState,
+    phaseResults,
     gameStatus,
     lastTeamId: s.lastTeamId as string | undefined,
     phaseCompleteModal: s.phaseCompleteModal as RoundPhase | null | undefined,

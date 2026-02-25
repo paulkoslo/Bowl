@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useCallback, useRef, useState } from 'react';
 import {
   FlatList,
   Pressable,
@@ -15,7 +15,7 @@ import {
 import { MIN_CARDS, STARTER_CARDS } from '@/game';
 import { useGameStore, type WizardCard } from '@/state';
 import { sanitizeCardText } from '@/utils';
-import { colors, spacing, typography } from '@/theme';
+import { colors, motion, radius, shadows, spacing, typography } from '@/theme';
 
 const MAX_CARD_TEXT = 80;
 
@@ -37,6 +37,15 @@ export function CardsStep({ onNext, onBack }: CardsStepProps) {
 
   const trimmed = sanitizeCardText(text, MAX_CARD_TEXT);
   const canReview = wizardCards.length >= MIN_CARDS;
+  const lastPressByKeyRef = useRef<Record<string, number>>({});
+
+  const runBuffered = useCallback((key: string, action: () => void) => {
+    const now = Date.now();
+    const last = lastPressByKeyRef.current[key] ?? 0;
+    if (now - last < motion.buttonBufferMs) return;
+    lastPressByKeyRef.current[key] = now;
+    action();
+  }, []);
 
   const handleAdd = () => {
     if (trimmed.length === 0) return;
@@ -68,8 +77,10 @@ export function CardsStep({ onNext, onBack }: CardsStepProps) {
         {item.text}
       </Text>
       <Pressable
-        onPress={() => removeWizardCard(item.id)}
-        style={styles.removeBtn}
+        onPress={() =>
+          runBuffered(`remove-${item.id}`, () => removeWizardCard(item.id))
+        }
+        style={({ pressed }) => [styles.removeBtn, pressed && styles.removeBtnPressed]}
         hitSlop={8}
       >
         <Text style={styles.removeText}>Delete</Text>
@@ -98,10 +109,13 @@ export function CardsStep({ onNext, onBack }: CardsStepProps) {
               {wizardPlayers.map((p) => (
                 <Pressable
                   key={p.id}
-                  onPress={() => setWizardSelectedPlayerId(p.id)}
-                  style={[
+                  onPress={() =>
+                    runBuffered(`picker-${p.id}`, () => setWizardSelectedPlayerId(p.id))
+                  }
+                  style={({ pressed }) => [
                     styles.pickerChip,
                     wizardSelectedPlayerId === p.id && styles.pickerChipActive,
+                    pressed && styles.pickerChipPressed,
                   ]}
                 >
                   <Text
@@ -147,18 +161,19 @@ export function CardsStep({ onNext, onBack }: CardsStepProps) {
           keyExtractor={(item) => item.id}
           renderItem={renderCard}
           style={styles.list}
+          contentContainerStyle={wizardCards.length === 0 ? styles.listContentEmpty : undefined}
           ListEmptyComponent={
             <Text style={styles.empty}>No cards yet. Add at least {MIN_CARDS}.</Text>
           }
         />
 
         <View style={styles.actions}>
-          <SecondaryButton title="Back" onPress={onBack} />
-          <View style={styles.spacer} />
+          <SecondaryButton title="Back" onPress={onBack} style={styles.actionButton} />
           <PrimaryButton
             title="Review"
             onPress={handleReview}
             disabled={!canReview}
+            style={styles.actionButton}
           />
         </View>
       </View>
@@ -185,13 +200,26 @@ const styles = StyleSheet.create({
   },
   counter: {
     marginBottom: spacing.sm,
+    paddingVertical: spacing.xs,
+    paddingHorizontal: spacing.sm,
+    alignSelf: 'flex-start',
+    backgroundColor: colors.surface,
+    borderRadius: radius.full,
+    borderWidth: 1,
+    borderColor: colors.border,
   },
   counterText: {
     fontSize: typography.captionSize,
     color: colors.textMuted,
+    fontWeight: '600',
   },
   playerPicker: {
     marginBottom: spacing.md,
+    backgroundColor: colors.surface,
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    borderColor: colors.border,
+    padding: spacing.md,
   },
   pickerLabel: {
     fontSize: typography.captionSize,
@@ -206,11 +234,14 @@ const styles = StyleSheet.create({
   pickerChip: {
     paddingVertical: spacing.xs,
     paddingHorizontal: spacing.sm,
-    borderRadius: 999,
+    borderRadius: radius.full,
     backgroundColor: colors.border,
   },
   pickerChipActive: {
     backgroundColor: colors.secondary,
+  },
+  pickerChipPressed: {
+    opacity: 0.82,
   },
   pickerChipText: {
     fontSize: typography.captionSize,
@@ -231,19 +262,27 @@ const styles = StyleSheet.create({
   },
   spacer: {
     height: spacing.sm,
+    width: spacing.sm,
   },
   list: {
     flex: 1,
     marginBottom: spacing.md,
+  },
+  listContentEmpty: {
+    flexGrow: 1,
+    justifyContent: 'center',
   },
   cardRow: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingVertical: spacing.sm,
     paddingHorizontal: spacing.md,
-    backgroundColor: colors.surface,
-    borderRadius: 8,
+    backgroundColor: colors.surfaceElevated,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.border,
     marginBottom: spacing.sm,
+    ...shadows.surfaceSoft,
   },
   cardText: {
     flex: 1,
@@ -253,10 +292,16 @@ const styles = StyleSheet.create({
   removeBtn: {
     paddingVertical: spacing.xs,
     paddingHorizontal: spacing.sm,
+    borderRadius: radius.full,
+    backgroundColor: '#F8E3DD',
+  },
+  removeBtnPressed: {
+    opacity: 0.8,
   },
   removeText: {
     fontSize: typography.captionSize,
     color: colors.primary,
+    fontWeight: '700',
   },
   empty: {
     fontSize: typography.bodySize,
@@ -267,5 +312,9 @@ const styles = StyleSheet.create({
   actions: {
     width: '100%',
     flexDirection: 'row',
+    gap: spacing.sm,
+  },
+  actionButton: {
+    flex: 1,
   },
 });

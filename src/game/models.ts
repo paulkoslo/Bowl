@@ -23,29 +23,47 @@ export interface Card {
   createdByPlayerId?: string;
 }
 
-/** Per-phase state: one main bowl + passed-to-team buckets + scored (card IDs only). */
+/** Per-phase state: one main bowl + team bowls (scored card IDs). */
 export interface PhaseState {
-  /** Single shared bowl for this round; all words appear once. Guessed words leave; passed words go to passedToTeam. */
+  /** Single shared bowl for this round; all words appear once until guessed/passed. */
   mainBowl: string[];
-  /** Cards passed to each team this round (they draw from here on their turn when non-empty). */
+  /**
+   * @deprecated legacy field from older rules.
+   * Always empty under the current rules (pass goes directly to the other team's bowl).
+   */
   passedToTeam: Record<string, string[]>;
-  /** Team id -> list of card IDs scored this phase. */
+  /** Team id -> list of card IDs in that team's bowl for this phase. */
   scoredByTeam: Record<string, string[]>;
 }
 
-/** Where the current card was drawn from (for undo). */
-export type DrawnFrom = 'main' | string;
+/** Team id -> final score count for a phase. */
+export type PhaseResult = Record<string, number>;
+
+/** Snapshot of finalized phase results. Null means phase is not finalized yet. */
+export interface PhaseResults {
+  describe: PhaseResult | null;
+  oneWord: PhaseResult | null;
+  charades: PhaseResult | null;
+}
 
 /** Single turn action for undo (limit 50). */
 export type TurnAction =
-  | { type: 'gotIt'; cardId: string; teamId: string; phase: RoundPhase; drawnFrom: DrawnFrom }
+  | {
+      type: 'gotIt';
+      cardId: string;
+      teamId: string;
+      phase: RoundPhase;
+      /** Card that was auto-drawn right after this action (if any). */
+      nextCardId?: string;
+    }
   | {
       type: 'passToOther';
       cardId: string;
       fromTeamId: string;
       toTeamId: string;
       phase: RoundPhase;
-      drawnFrom: DrawnFrom;
+      /** Card that was auto-drawn right after this action (if any). */
+      nextCardId?: string;
     };
 
 export interface TurnState {
@@ -55,8 +73,6 @@ export interface TurnState {
   isRunning: boolean;
   startedAt: number;
   currentCardId?: string;
-  /** Where current card was drawn from ('main' or teamId for passed pile). */
-  drawnFrom?: DrawnFrom;
   history: TurnAction[];
 }
 
@@ -84,6 +100,8 @@ export interface GameSession {
     oneWord: PhaseState;
     charades: PhaseState;
   };
+  /** Finalized results per phase, captured when a phase ends. */
+  phaseResults: PhaseResults;
   gameStatus: GameStatus;
   /** Last team that had a turn (for alternating). */
   lastTeamId?: string;
