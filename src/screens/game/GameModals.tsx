@@ -9,7 +9,6 @@ import {
 } from '@/game';
 import { ROUTES } from '@/navigation';
 import { colors, spacing, typography } from '@/theme';
-import { waitForButtonAnimation } from '@/utils';
 import { PHASE_LABELS } from './constants';
 
 interface NoActiveGameProps {
@@ -32,7 +31,7 @@ interface GameOverModalProps {
   session: GameSession;
   onDismiss: () => void;
   onResetAll: () => Promise<void>;
-  onNavigateHome: (path: typeof ROUTES.HOME) => void;
+  onNavigateHome: (path: typeof ROUTES.HOME) => void | Promise<void>;
 }
 
 export function GameOverModalView({
@@ -58,8 +57,7 @@ export function GameOverModalView({
           onPress={async () => {
             onDismiss();
             await onResetAll();
-            await waitForButtonAnimation();
-            onNavigateHome(ROUTES.HOME);
+            await onNavigateHome(ROUTES.HOME);
           }}
         />
       </View>

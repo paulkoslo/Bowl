@@ -109,7 +109,7 @@ export const shadows = {
 export const motion = {
   buttonBufferMs: 90,
   flightDurationMs: 250,
-  buttonNavigateDelayMs: 190,
+  buttonNavigateDelayMs: 260,
   backdropPulseMs: 3800,
   backdropDriftMs: 7200,
   backdropStrobeMs: 1400,

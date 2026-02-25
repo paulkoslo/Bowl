@@ -209,7 +209,10 @@ export function GameScreen() {
         session={currentGame}
         onDismiss={dismissGameOverModal}
         onResetAll={resetAll}
-        onNavigateHome={(path) => router.replace(path)}
+        onNavigateHome={async (path) => {
+          await waitForButtonAnimation();
+          router.replace(path);
+        }}
       />
     );
   }
