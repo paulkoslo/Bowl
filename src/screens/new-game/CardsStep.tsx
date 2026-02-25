@@ -33,7 +33,6 @@ export function CardsStep({ onNext, onBack }: CardsStepProps) {
   const addWizardCard = useGameStore((s) => s.addWizardCard);
   const removeWizardCard = useGameStore((s) => s.removeWizardCard);
   const setWizardSelectedPlayerId = useGameStore((s) => s.setWizardSelectedPlayerId);
-  const setWizardStep = useGameStore((s) => s.setWizardStep);
 
   const trimmed = sanitizeCardText(text, MAX_CARD_TEXT);
   const canReview = wizardCards.length >= MIN_CARDS;
@@ -67,7 +66,6 @@ export function CardsStep({ onNext, onBack }: CardsStepProps) {
   };
 
   const handleReview = () => {
-    setWizardStep(3);
     onNext();
   };
 

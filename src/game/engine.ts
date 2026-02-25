@@ -5,7 +5,7 @@ import type {
   PhaseState,
   RoundPhase,
 } from './models';
-import { shuffle } from '@/utils/shuffle';
+import { shuffle } from '../utils/shuffle';
 
 export const PHASE_ORDER: RoundPhase[] = ['describe', 'oneWord', 'charades'];
 
@@ -13,18 +13,6 @@ export function getOtherTeamId(session: GameSession, teamId: string): string {
   const ids = session.teams.map((t) => t.id);
   const other = ids.find((id) => id !== teamId);
   return other ?? ids[0];
-}
-
-/** Initialize one phase: one main bowl (all words once), empty passed buckets. */
-export function initPhaseState(cardIds: string[]): PhaseState {
-  const shuffled = shuffle([...cardIds]);
-  const teamAId = 'teamA';
-  const teamBId = 'teamB';
-  return {
-    mainBowl: shuffled,
-    passedToTeam: { [teamAId]: [], [teamBId]: [] },
-    scoredByTeam: { [teamAId]: [], [teamBId]: [] },
-  };
 }
 
 /** Initialize phaseState for a phase: one main bowl, empty passed buckets. */

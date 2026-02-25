@@ -1,16 +1,35 @@
-# src – Application code
+# src - Application code
 
-All Bowl app code lives under `src/`. Expo Router uses **src/app/** as the route directory (file-based routing). See [Expo Router: Top-level src directory](https://docs.expo.dev/router/reference/src-directory/).
+All Bowl app code lives under `src/`.
+Expo Router uses `src/app/` as the route directory.
 
-- **app/** – Routes and root layout only. Every file here is a route or layout; do not put non-route code here.
-- **screens/** – Screen components used by route files in `app/`.
-- **components/** – Reusable UI.
-- **game/** – Domain models and game logic.
-- **state/** – Global state (Zustand).
-- **storage/** – Persistence (stub).
-- **theme/** – Spacing, typography, colors.
-- **navigation/** – Route path constants (`ROUTES`).
-- **utils/** – Shared helpers.
-- **assets/** – Local assets.
+## Top-level folders
 
-Path alias: `@/` → `src/` (e.g. `import { HomeScreen } from '@/screens'`).
+- `app/` - routes and layout only (no domain/business logic)
+- `screens/` - route-facing screen orchestration
+- `components/` - reusable UI building blocks
+- `game/` - domain types, rules, migration, commands, selectors
+- `state/` - Zustand orchestration and side-effect wiring
+- `storage/` - persistence adapters
+- `theme/` - design tokens and motion constants
+- `navigation/` - route constants
+- `utils/` - shared helpers
+
+## Game domain split
+
+- `game/models.ts` - canonical data model
+- `game/engine.ts` - pure helpers + migration
+- `game/commands/` - pure game-state transitions
+- `game/selectors/` - pure derived-state reads
+
+This separation keeps UI, persistence, and game rules independently editable.
+
+## Path alias
+
+`@/` maps to `src/`.
+
+Example:
+
+```ts
+import { useGameStore } from '@/state';
+```

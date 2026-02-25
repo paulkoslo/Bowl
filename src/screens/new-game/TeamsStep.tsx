@@ -9,14 +9,12 @@ const MAX_TEAM_NAME = 20;
 
 interface TeamsStepProps {
   onNext: () => void;
-  onBack: () => void;
 }
 
-export function TeamsStep({ onNext, onBack }: TeamsStepProps) {
+export function TeamsStep({ onNext }: TeamsStepProps) {
   const [teamA, setTeamA] = useState(useGameStore.getState().wizardTeamNames[0]);
   const [teamB, setTeamB] = useState(useGameStore.getState().wizardTeamNames[1]);
   const setWizardTeams = useGameStore((s) => s.setWizardTeams);
-  const setWizardStep = useGameStore((s) => s.setWizardStep);
 
   const nameA = sanitizeTeamName(teamA, MAX_TEAM_NAME);
   const nameB = sanitizeTeamName(teamB, MAX_TEAM_NAME);
@@ -24,7 +22,6 @@ export function TeamsStep({ onNext, onBack }: TeamsStepProps) {
 
   const handleNext = () => {
     setWizardTeams([nameA, nameB]);
-    setWizardStep(1);
     onNext();
   };
 

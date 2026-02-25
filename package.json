@@ -7,8 +7,12 @@
     "android": "expo start --android",
     "ios": "expo start --ios",
     "web": "expo start --web",
-    "lint": "expo lint",
-    "format": "prettier --write \"**/*.{ts,tsx,js,json}\""
+    "lint": "eslint \"src/**/*.{ts,tsx}\"",
+    "lint:fix": "npm run lint -- --fix",
+    "typecheck": "tsc --noEmit",
+    "build:unit": "rm -rf .tmp/unit && tsc -p tsconfig.unit.json",
+    "test:unit": "npm run build:unit && node --test tests/unit/*.test.cjs",
+    "format": "prettier --write \"**/*.{ts,tsx,js,json,md,yml}\""
   },
   "dependencies": {
     "@expo/vector-icons": "^15.0.3",

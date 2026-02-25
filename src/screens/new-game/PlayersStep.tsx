@@ -40,7 +40,6 @@ export function PlayersStep({ onNext, onBack, onSkip }: PlayersStepProps) {
   const wizardPlayers = useGameStore((s) => s.wizardPlayers);
   const addWizardPlayer = useGameStore((s) => s.addWizardPlayer);
   const removeWizardPlayer = useGameStore((s) => s.removeWizardPlayer);
-  const setWizardStep = useGameStore((s) => s.setWizardStep);
 
   const trimmed = sanitizePlayerName(name, MAX_PLAYER_NAME);
   const lastPressByKeyRef = useRef<Record<string, number>>({});
@@ -60,7 +59,6 @@ export function PlayersStep({ onNext, onBack, onSkip }: PlayersStepProps) {
   };
 
   const handleNext = () => {
-    setWizardStep(2);
     onNext();
   };
 

@@ -1,6 +1,7 @@
 # Bowl
 
-Fishbowl-style party game. Built with Expo, React Native, and TypeScript. Local-first (no backend or auth for now).
+Fishbowl-style party game built with Expo, React Native, and TypeScript.
+The app is local-first (no backend/auth) and optimized for maintainability with clear game-domain boundaries.
 
 ## Get started
 
@@ -13,49 +14,45 @@ Fishbowl-style party game. Built with Expo, React Native, and TypeScript. Local-
 2. Start the app
 
    ```bash
-   npx expo start
+   npm start
    ```
 
 Then open in iOS simulator, Android emulator, or Expo Go.
 
+## Quality checks
+
+- `npm run lint` - ESLint for app source (`src/**/*.{ts,tsx}`)
+- `npm run typecheck` - TypeScript `--noEmit`
+- `npm run test:unit` - game-domain unit tests (Node test runner)
+- `npm run format` - Prettier
+
 ## Project structure
 
-Expo Router supports two layouts: **app at project root** or **everything under src with src/app for routes**. Bowl uses the **src** layout so all app code lives in one place. See [Expo Router: Top-level src directory](https://docs.expo.dev/router/reference/src-directory/).
+Expo Router uses the `src/` layout for routes.
 
-- **src/app/** – **Only** Expo Router routes and layout (file-based routing)
-  - `_layout.tsx` – root layout and stack
-  - `index.tsx` – Home route (`/`)
-  - `new-game.tsx`, `game.tsx`, `settings.tsx` – other routes
-- **src/screens/** – Screen components (HomeScreen, NewGameScreen, etc.); imported by route files
-- **src/components/** – Reusable UI (ScreenContainer, PrimaryButton, SecondaryButton)
-- **src/game/** – Domain models (Team, Player, Card, GameSession, etc.)
-- **src/state/** – Zustand game store
-- **src/storage/** – Persistence stub (for resume later)
-- **src/theme/** – Spacing, typography, colors
-- **src/navigation/** – Route path constants (e.g. `ROUTES.HOME`)
-- **src/utils/** – Shared utilities
-- **src/assets/** – Local assets (placeholder)
+- `src/app/` - route entry files and root layout only
+- `src/screens/` - screen orchestration
+- `src/screens/game/` - Game screen subcomponents/hooks (`GamePlayView`, modals, timers, particles)
+- `src/components/` - reusable UI primitives
+- `src/game/models.ts` - domain types
+- `src/game/engine.ts` - pure helpers, selectors, and migration logic
+- `src/game/commands/` - pure state transition commands
+- `src/game/selectors/` - pure derived-state selectors
+- `src/state/gameStore.ts` - Zustand store orchestration and persistence wiring
+- `src/storage/` - AsyncStorage adapters
+- `src/theme/` - design tokens/motion values
+- `src/navigation/` - route constants (`ROUTES`)
+- `src/utils/` - shared utilities
+- `tests/unit/` - domain unit tests
+- `.github/workflows/quality.yml` - CI (lint + typecheck + unit tests)
 
-Config files (`app.json`, `package.json`, `tsconfig.json`) stay in the **project root**. There is no top-level `app/` folder; routes live only in `src/app/`.
+See [ARCHITECTURE.md](./ARCHITECTURE.md) for boundaries, invariants, and change guidance.
 
-## Debugging
+## Debug logging
 
-The app logs `[Bowl]` messages at important steps so you can see where things run or break:
+The app uses `[Bowl]` logs for lifecycle and key actions:
 
-- **RootLayout** – when the navigation stack mounts
-- **Route: index / new-game / game / settings** – when each route screen mounts/unmounts
-- **HomeScreen, NewGameScreen, GameScreen, SettingsScreen** – when each screen component mounts and when you tap buttons (e.g. “New Game pressed”, “Start Game pressed”)
-- **gameStore** – when `createGame()` or `resetGame()` is called (with game id when relevant)
-
-In the Metro/Expo terminal or your device’s dev tools, filter or search for `[Bowl]` to see only these logs.
-
-## Scripts
-
-- `npm start` – Start dev server
-- `npm run lint` – Run ESLint
-- `npm run format` – Format with Prettier
-
-## Learn more
-
-- [Expo documentation](https://docs.expo.dev/)
-- [Expo Router](https://docs.expo.dev/router/introduction/)
+- Root layout mount/hydration
+- Route mount/unmount
+- Screen-level actions (home/settings/new game/game)
+- Store actions (session lifecycle and turn actions)

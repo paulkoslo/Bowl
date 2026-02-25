@@ -1,0 +1,14 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": false,
+    "outDir": ".tmp/unit",
+    "rootDir": ".",
+    "module": "node16",
+    "moduleResolution": "node16",
+    "declaration": false,
+    "sourceMap": false
+  },
+  "include": ["src/game/**/*.ts", "src/utils/shuffle.ts"],
+  "exclude": ["**/*.test.ts", "**/*.test.tsx"]
+}

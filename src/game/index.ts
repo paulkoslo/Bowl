@@ -19,11 +19,15 @@ export {
   getTeamPhaseScore,
   getTeamTotalScore,
   getOtherTeamId,
-  initPhaseStateForTeams,
   isPhaseComplete,
+  initPhaseStateForTeams,
   snapshotPhaseResult,
   migrateSession,
   PHASE_ORDER,
 } from './engine';
-export { STARTER_CARDS } from './starterCards';/** Minimum cards required to start a game */
+export * from './commands';
+export * from './selectors';
+export { STARTER_CARDS } from './starterCards';
+
+/** Minimum cards required to start a game */
 export const MIN_CARDS = 10;

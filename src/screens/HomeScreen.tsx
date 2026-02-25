@@ -14,6 +14,7 @@ import {
   ScreenContainer,
   SecondaryButton,
 } from '@/components';
+import { ROUTES } from '@/navigation';
 import { loadSession, saveLastActiveGameId } from '@/storage';
 import { useGameStore } from '@/state';
 import { colors, radius, spacing, typography } from '@/theme';
@@ -92,7 +93,7 @@ export function HomeScreen() {
     }
     setCurrentGame(session);
     await waitForButtonAnimation();
-    router.replace('/game');
+    router.replace(ROUTES.GAME);
   };
 
   return (
@@ -113,9 +114,9 @@ export function HomeScreen() {
           <PrimaryButton
             title="New Game"
             onPress={async () => {
-              log('New Game pressed', 'navigating to /new-game');
+              log('New Game pressed', `navigating to ${ROUTES.NEW_GAME}`);
               await waitForButtonAnimation();
-              router.push('/new-game');
+              router.push(ROUTES.NEW_GAME);
             }}
           />
           <View style={styles.spacer} />
@@ -130,9 +131,9 @@ export function HomeScreen() {
         <SecondaryButton
           title="Settings"
           onPress={async () => {
-            log('Settings pressed', 'navigating to /settings');
+            log('Settings pressed', `navigating to ${ROUTES.SETTINGS}`);
             await waitForButtonAnimation();
-            router.push('/settings');
+            router.push(ROUTES.SETTINGS);
           }}
         />
       </View>

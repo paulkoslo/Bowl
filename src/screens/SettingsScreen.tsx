@@ -2,6 +2,7 @@ import { useRouter } from 'expo-router';
 import React, { useEffect } from 'react';
 import { Alert, StyleSheet, Text, View } from 'react-native';
 import { PrimaryButton, ScreenContainer, SecondaryButton } from '@/components';
+import { ROUTES } from '@/navigation';
 import { useGameStore } from '@/state';
 import { colors, spacing, typography } from '@/theme';
 import { waitForButtonAnimation } from '@/utils';
@@ -32,7 +33,7 @@ export function SettingsScreen() {
           onPress: async () => {
             await resetAll();
             await waitForButtonAnimation();
-            router.replace('/');
+            router.replace(ROUTES.HOME);
           },
         },
       ]

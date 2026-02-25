@@ -7,6 +7,7 @@ import {
   ReviewStep,
   TeamsStep,
 } from '@/screens/new-game';
+import { ROUTES } from '@/navigation';
 import { waitForButtonAnimation } from '@/utils';
 
 const DEBUG = true;
@@ -50,11 +51,11 @@ export function NewGameScreen() {
     await persistCurrentGame();
     resetWizard();
     await waitForButtonAnimation();
-    router.replace('/game');
+    router.replace(ROUTES.GAME);
   };
 
   if (wizardStep === 0) {
-    return <TeamsStep onNext={handleNext} onBack={handleBack} />;
+    return <TeamsStep onNext={handleNext} />;
   }
   if (wizardStep === 1) {
     return (
