@@ -29,14 +29,15 @@ export function TextInput({
 const styles = StyleSheet.create({
   input: {
     backgroundColor: colors.surfaceElevated,
-    borderColor: colors.border,
-    borderRadius: radius.md,
-    borderWidth: 1,
+    borderColor: colors.accent,
+    borderRadius: radius.lg,
+    borderWidth: 2,
     color: colors.text,
     fontSize: typography.bodySize,
     minHeight: minTouchTargetSize,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
+    fontWeight: '600',
+    paddingHorizontal: spacing.md + 2,
+    paddingVertical: spacing.sm + 1,
     ...shadows.surfaceSoft,
   },
 });

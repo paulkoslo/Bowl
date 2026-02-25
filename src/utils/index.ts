@@ -1,3 +1,4 @@
+export { waitForButtonAnimation } from './buttonAnimation';
 export { generateId } from './id';
 export { shuffle } from './shuffle';
 export {

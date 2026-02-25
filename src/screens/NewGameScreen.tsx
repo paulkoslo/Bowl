@@ -7,6 +7,7 @@ import {
   ReviewStep,
   TeamsStep,
 } from '@/screens/new-game';
+import { waitForButtonAnimation } from '@/utils';
 
 const DEBUG = true;
 const log = (step: string, detail?: string) => {
@@ -27,8 +28,9 @@ export function NewGameScreen() {
     return () => log('unmounted');
   }, [resetWizard]);
 
-  const handleBack = () => {
+  const handleBack = async () => {
     if (wizardStep === 0) {
+      await waitForButtonAnimation();
       router.back();
       return;
     }
@@ -47,6 +49,7 @@ export function NewGameScreen() {
     createNewSession();
     await persistCurrentGame();
     resetWizard();
+    await waitForButtonAnimation();
     router.replace('/game');
   };
 

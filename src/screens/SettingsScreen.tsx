@@ -4,6 +4,7 @@ import { Alert, StyleSheet, Text, View } from 'react-native';
 import { PrimaryButton, ScreenContainer, SecondaryButton } from '@/components';
 import { useGameStore } from '@/state';
 import { colors, spacing, typography } from '@/theme';
+import { waitForButtonAnimation } from '@/utils';
 
 const DEBUG = true;
 const log = (step: string, detail?: string) => {
@@ -30,6 +31,7 @@ export function SettingsScreen() {
           style: 'destructive',
           onPress: async () => {
             await resetAll();
+            await waitForButtonAnimation();
             router.replace('/');
           },
         },
@@ -47,8 +49,9 @@ export function SettingsScreen() {
         <View style={styles.actions}>
           <SecondaryButton
             title="Back"
-            onPress={() => {
+            onPress={async () => {
               log('Back pressed');
+              await waitForButtonAnimation();
               router.back();
             }}
           />

@@ -1,6 +1,7 @@
 import React from 'react';
 import { StyleProp, StyleSheet, View, ViewStyle } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { PartyBackdrop } from './PartyBackdrop';
 import { colors, spacing } from '@/theme';
 
 interface ScreenContainerProps {
@@ -19,10 +20,7 @@ export function ScreenContainer({
 
   return (
     <View style={styles.container}>
-      <View pointerEvents="none" style={styles.ambientLayer}>
-        <View style={styles.ambientTop} />
-        <View style={styles.ambientBottom} />
-      </View>
+      <PartyBackdrop />
       <View
         style={[
           styles.inner,
@@ -45,32 +43,10 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.background,
+    overflow: 'hidden',
   },
   inner: {
     flex: 1,
-  },
-  ambientLayer: {
-    ...StyleSheet.absoluteFillObject,
-    overflow: 'hidden',
-  },
-  ambientTop: {
-    position: 'absolute',
-    right: -50,
-    top: -80,
-    width: 220,
-    height: 220,
-    borderRadius: 9999,
-    backgroundColor: colors.accentMuted,
-    opacity: 0.25,
-  },
-  ambientBottom: {
-    position: 'absolute',
-    left: -70,
-    bottom: -90,
-    width: 250,
-    height: 250,
-    borderRadius: 9999,
-    backgroundColor: colors.accent,
-    opacity: 0.1,
+    zIndex: 1,
   },
 });

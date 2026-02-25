@@ -38,7 +38,7 @@ import {
   spacing,
   typography,
 } from '@/theme';
-import { generateId } from '@/utils';
+import { generateId, waitForButtonAnimation } from '@/utils';
 
 const DEBUG = true;
 const log = (step: string, detail?: string) => {
@@ -167,55 +167,76 @@ export function GameScreen() {
     return () => sub.remove();
   }, [persistCurrentGame]);
 
+  const confirmAction = useCallback(
+    (
+      title: string,
+      message: string,
+      confirmText: string,
+      destructive: boolean,
+      onConfirm: () => void | Promise<void>
+    ) => {
+      if (typeof globalThis.confirm === 'function') {
+        const ok = globalThis.confirm(`${title}\n\n${message}`);
+        if (ok) void onConfirm();
+        return;
+      }
+      Alert.alert(title, message, [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: confirmText,
+          style: destructive ? 'destructive' : 'default',
+          onPress: () => {
+            void onConfirm();
+          },
+        },
+      ]);
+    },
+    []
+  );
+
   useEffect(() => {
     const unsubscribe = navigation.addListener('beforeRemove', (e) => {
       if (e.data.action.type !== 'GO_BACK') return;
       e.preventDefault();
       const turnRunning = currentGame?.turn?.isRunning;
-      Alert.alert(
+      confirmAction(
         turnRunning ? 'End turn and leave?' : 'Leave game?',
         turnRunning
           ? 'The turn will end. Progress is saved.'
           : 'Your progress is saved. You can resume from Home.',
-        [
-          { text: 'Stay', style: 'cancel' },
-          {
-            text: 'Leave',
-            style: 'destructive',
-            onPress: () => {
-              if (turnRunning) endTurn('manual');
-              router.back();
-            },
-          },
-        ]
+        'Leave',
+        true,
+        () => {
+          if (turnRunning) endTurn('manual');
+          router.back();
+        }
       );
     });
     return unsubscribe;
-  }, [navigation, currentGame?.turn?.isRunning, endTurn]);
+  }, [confirmAction, navigation, currentGame?.turn?.isRunning, endTurn, router]);
 
   const handleEndGame = () => {
-    Alert.alert(
+    confirmAction(
       'End Game',
       'This will end the current game and clear saved progress. Continue?',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'End Game',
-          style: 'destructive',
-          onPress: async () => {
-            await resetAll();
-            router.replace('/');
-          },
-        },
-      ]
+      'End Game',
+      true,
+      async () => {
+        await resetAll();
+        await waitForButtonAnimation();
+        router.replace('/');
+      }
     );
   };
 
   const handleEndTurn = () => {
-    Alert.alert('End turn?', 'Time will stop for this turn.', [
-      { text: 'Cancel', style: 'cancel' },
-      { text: 'End Turn', onPress: () => endTurn('manual') },
-    ]);
+    confirmAction(
+      'End Turn?',
+      'Time will stop for this turn.',
+      'End Turn',
+      false,
+      () => endTurn('manual')
+    );
   };
 
   if (!currentGame) {
@@ -224,7 +245,13 @@ export function GameScreen() {
         <View style={styles.center}>
           <Text style={styles.title}>No active game</Text>
           <Text style={styles.subtitle}>Start a new game from Home.</Text>
-          <PrimaryButton title="Go Home" onPress={() => router.replace('/')} />
+          <PrimaryButton
+            title="Go Home"
+            onPress={async () => {
+              await waitForButtonAnimation();
+              router.replace('/');
+            }}
+          />
         </View>
       </ScreenContainer>
     );
@@ -247,9 +274,10 @@ export function GameScreen() {
           </View>
           <PrimaryButton
             title="Back to Home"
-            onPress={() => {
+            onPress={async () => {
               dismissGameOverModal();
-              resetAll();
+              await resetAll();
+              await waitForButtonAnimation();
               router.replace('/');
             }}
           />

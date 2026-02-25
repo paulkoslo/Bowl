@@ -1,6 +1,14 @@
 import { useRouter } from 'expo-router';
 import React, { useEffect } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
+import Animated, {
+  Easing,
+  interpolate,
+  useAnimatedStyle,
+  useSharedValue,
+  withRepeat,
+  withTiming,
+} from 'react-native-reanimated';
 import {
   PrimaryButton,
   ScreenContainer,
@@ -9,6 +17,7 @@ import {
 import { loadSession, saveLastActiveGameId } from '@/storage';
 import { useGameStore } from '@/state';
 import { colors, radius, spacing, typography } from '@/theme';
+import { waitForButtonAnimation } from '@/utils';
 
 const DEBUG = true;
 const log = (step: string, detail?: string) => {
@@ -20,11 +29,55 @@ export function HomeScreen() {
   const lastActiveGameId = useGameStore((s) => s.lastActiveGameId);
   const setCurrentGame = useGameStore((s) => s.setCurrentGame);
   const setLastActiveGameId = useGameStore((s) => s.setLastActiveGameId);
+  const heroFloat = useSharedValue(0);
+  const ringSpin = useSharedValue(0);
 
   useEffect(() => {
     log('mounted');
     return () => log('unmounted');
   }, []);
+
+  useEffect(() => {
+    heroFloat.value = withRepeat(
+      withTiming(1, {
+        duration: 2400,
+        easing: Easing.inOut(Easing.quad),
+      }),
+      -1,
+      true
+    );
+    ringSpin.value = withRepeat(
+      withTiming(1, {
+        duration: 9000,
+        easing: Easing.linear,
+      }),
+      -1,
+      false
+    );
+  }, [heroFloat, ringSpin]);
+
+  const titleFloatStyle = useAnimatedStyle(() => ({
+    transform: [
+      {
+        translateY: interpolate(heroFloat.value, [0, 1], [-8, 8]),
+      },
+      {
+        rotate: `${interpolate(heroFloat.value, [0, 1], [-1.6, 1.6])}deg`,
+      },
+    ],
+  }));
+
+  const ringSpinStyle = useAnimatedStyle(() => ({
+    transform: [{ rotate: `${interpolate(ringSpin.value, [0, 1], [0, 360])}deg` }],
+  }));
+
+  const buttonFloatStyle = useAnimatedStyle(() => ({
+    transform: [
+      {
+        translateY: interpolate(heroFloat.value, [0, 1], [3, -5]),
+      },
+    ],
+  }));
 
   const canResume = lastActiveGameId !== null;
 
@@ -38,22 +91,30 @@ export function HomeScreen() {
       return;
     }
     setCurrentGame(session);
+    await waitForButtonAnimation();
     router.replace('/game');
   };
 
   return (
     <ScreenContainer>
       <View style={styles.content}>
-        <View style={styles.titleBlock}>
-          <View style={styles.titleBlob} />
+        <Animated.View style={[styles.titleBlock, titleFloatStyle]}>
+          <Animated.View style={[styles.titleRing, ringSpinStyle]} />
+          <View style={[styles.titleOrb, styles.titleOrbLeft]} />
+          <View style={[styles.titleOrb, styles.titleOrbRight]} />
           <Text style={styles.title}>Bowl</Text>
-          <Text style={styles.tagline}>The party game for your living room</Text>
-        </View>
-        <View style={styles.buttons}>
+          <Text style={styles.tagline}>Shout it. One-word it. Act it out.</Text>
+          <View style={styles.badges}>
+            <Text style={styles.badge}>Fast Rounds</Text>
+            <Text style={styles.badge}>Team Chaos</Text>
+          </View>
+        </Animated.View>
+        <Animated.View style={[styles.buttons, buttonFloatStyle]}>
           <PrimaryButton
             title="New Game"
-            onPress={() => {
+            onPress={async () => {
               log('New Game pressed', 'navigating to /new-game');
+              await waitForButtonAnimation();
               router.push('/new-game');
             }}
           />
@@ -63,13 +124,14 @@ export function HomeScreen() {
             onPress={handleResume}
             disabled={!canResume}
           />
-        </View>
+        </Animated.View>
       </View>
       <View style={styles.footer}>
         <SecondaryButton
           title="Settings"
-          onPress={() => {
+          onPress={async () => {
             log('Settings pressed', 'navigating to /settings');
+            await waitForButtonAnimation();
             router.push('/settings');
           }}
         />
@@ -86,41 +148,88 @@ const styles = StyleSheet.create({
   },
   titleBlock: {
     alignItems: 'center',
-    marginBottom: spacing.xxl,
+    marginBottom: spacing.xl + 6,
+    width: '100%',
+    maxWidth: 340,
+    position: 'relative',
+    paddingVertical: spacing.lg,
   },
-  titleBlob: {
+  titleRing: {
     position: 'absolute',
-    width: 180,
-    height: 180,
+    width: 280,
+    height: 190,
+    borderRadius: 999,
+    borderWidth: 3,
+    borderColor: colors.partyBlue,
+    borderStyle: 'dashed',
+    opacity: 0.22,
+    top: -12,
+  },
+  titleOrb: {
+    position: 'absolute',
+    width: 90,
+    height: 90,
     borderRadius: radius.full,
-    backgroundColor: colors.accentMuted,
-    opacity: 0.6,
-    top: -40,
+    opacity: 0.35,
+    top: 8,
+  },
+  titleOrbLeft: {
+    left: 18,
+    backgroundColor: colors.partyPink,
+  },
+  titleOrbRight: {
+    right: 18,
+    backgroundColor: colors.partyMint,
   },
   title: {
     fontSize: typography.displaySize,
     lineHeight: typography.displayLineHeight,
-    fontWeight: '800',
+    fontWeight: '900',
     color: colors.text,
-    letterSpacing: -0.5,
+    letterSpacing: 2.2,
+    textTransform: 'uppercase',
+    textShadowColor: 'rgba(255, 255, 255, 0.65)',
+    textShadowOffset: { width: 0, height: 2 },
+    textShadowRadius: 6,
   },
   tagline: {
-    fontSize: typography.captionSize,
+    fontSize: typography.bodySize,
     lineHeight: typography.captionLineHeight,
     color: colors.textMuted,
     marginTop: spacing.sm,
-    fontWeight: '500',
+    fontWeight: '700',
+    textAlign: 'center',
+  },
+  badges: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.sm,
+    justifyContent: 'center',
+    marginTop: spacing.md,
+  },
+  badge: {
+    paddingVertical: spacing.xs,
+    paddingHorizontal: spacing.sm,
+    borderRadius: radius.full,
+    backgroundColor: colors.surfaceElevated,
+    borderWidth: 2,
+    borderColor: colors.border,
+    color: colors.text,
+    fontSize: typography.captionSize,
+    fontWeight: '700',
+    textTransform: 'uppercase',
   },
   buttons: {
     width: '100%',
-    maxWidth: 280,
+    maxWidth: 310,
   },
   spacer: {
     height: spacing.md,
   },
   footer: {
     paddingHorizontal: spacing.md,
-    paddingBottom: spacing.sm,
+    paddingBottom: spacing.sm + 2,
     alignItems: 'center',
+    width: '100%',
   },
 });
