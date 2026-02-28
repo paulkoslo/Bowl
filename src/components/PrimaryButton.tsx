@@ -115,7 +115,14 @@ export function PrimaryButton({
       >
         <View pointerEvents="none" style={styles.highlightStrip} />
         <View pointerEvents="none" style={styles.sparkDot} />
-        <Text style={[styles.text, textStyle]}>{title}</Text>
+        <Text
+          style={[styles.text, textStyle]}
+          numberOfLines={1}
+          adjustsFontSizeToFit
+          minimumFontScale={0.82}
+        >
+          {title}
+        </Text>
       </Pressable>
     </Animated.View>
   );

@@ -39,7 +39,12 @@ export function ReviewStep({ onStartGame, onBack }: ReviewStepProps) {
 
         <View style={styles.actions}>
           <SecondaryButton title="Back" onPress={onBack} style={styles.actionButton} />
-          <PrimaryButton title="Start Game" onPress={onStartGame} style={styles.actionButton} />
+          <PrimaryButton
+            title="Start Game"
+            onPress={onStartGame}
+            style={styles.actionButton}
+            textStyle={styles.startGameText}
+          />
         </View>
       </View>
     </ScreenContainer>
@@ -91,5 +96,9 @@ const styles = StyleSheet.create({
   },
   actionButton: {
     flex: 1,
+  },
+  startGameText: {
+    fontSize: 16,
+    letterSpacing: 0.4,
   },
 });

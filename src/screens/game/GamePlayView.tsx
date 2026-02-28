@@ -1,5 +1,5 @@
 import React from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { Platform, StyleSheet, Text, View } from 'react-native';
 import {
   BowlScoreBlock,
   FlyingWord,
@@ -8,7 +8,6 @@ import {
   type LayoutRect,
 } from '@/components';
 import {
-  getCardsInBowlCount,
   getTeamPhaseScore,
   type GameSession,
 } from '@/game';
@@ -79,16 +78,18 @@ export function GamePlayView({
   return (
     <View ref={overlayHostRef} style={styles.content} collapsable={false}>
       <View style={styles.header}>
-        <View style={styles.phasePill}>
-          <Text style={styles.phasePillText}>{PHASE_LABELS[session.phase]}</Text>
+        <View style={styles.headerRow}>
+          <View style={styles.phaseBlock}>
+            <Text style={styles.phaseLabel}>Current game</Text>
+            <Text style={styles.phaseValue}>{PHASE_LABELS[session.phase]}</Text>
+          </View>
+          <View style={styles.headerDivider} />
+          <View style={styles.helperBlock}>
+            <Text style={styles.helperText}>
+              Pass sends the card directly to the other team&apos;s bowl.
+            </Text>
+          </View>
         </View>
-        <Text style={styles.helperText}>
-          Pass sends the card directly to the other team&apos;s bowl.
-        </Text>
-        <Text style={styles.helperText}>
-          Cards in main bowl: {getCardsInBowlCount(session, session.phase)}
-          {session.turn?.currentCardId ? ' (+ 1 in hand)' : ''}
-        </Text>
       </View>
 
       {isTurnRunning && (
@@ -125,26 +126,27 @@ export function GamePlayView({
             style={styles.actionButton}
           />
         </View>
-        <View style={styles.undoRow}>
+        <View style={[styles.row, compactButtons && styles.rowStacked]}>
           <SecondaryButton
             title="UNDO"
             onPress={onUndo}
             disabled={!canUndo}
-            style={styles.fullWidthButton}
+            style={styles.actionButton}
           />
-        </View>
-        <View style={styles.startRow}>
+          <View
+            style={[styles.controlSpacer, compactButtons && styles.controlSpacerStacked]}
+          />
           {!isTurnRunning ? (
             <PrimaryButton
               title="Start Turn"
               onPress={onStartTurn}
-              style={styles.fullWidthButton}
+              style={styles.actionButton}
             />
           ) : (
             <SecondaryButton
               title="End Turn"
               onPress={onEndTurn}
-              style={styles.fullWidthButton}
+              style={styles.actionButton}
             />
           )}
         </View>
@@ -193,6 +195,8 @@ const styles = StyleSheet.create({
     position: 'relative',
   },
   header: {
+    alignSelf: 'center',
+    width: '96%',
     marginBottom: spacing.md,
     padding: spacing.md,
     borderWidth: 1,
@@ -201,23 +205,43 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surface,
     ...shadows.surfaceSoft,
   },
-  phasePill: {
-    alignSelf: 'flex-start',
-    backgroundColor: colors.secondary,
-    paddingVertical: spacing.xs,
-    paddingHorizontal: spacing.md,
-    borderRadius: 999,
-    marginBottom: spacing.xs,
+  headerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
   },
-  phasePillText: {
-    fontSize: typography.captionSize,
-    fontWeight: '600',
-    color: '#fff',
+  phaseBlock: {
+    width: 108,
   },
-  helperText: {
+  phaseLabel: {
     fontSize: typography.captionSize,
     color: colors.textMuted,
-    lineHeight: typography.captionLineHeight,
+    marginBottom: 2,
+    textTransform: 'uppercase',
+    letterSpacing: 0.6,
+  },
+  phaseValue: {
+    fontSize: typography.headlineSize,
+    fontWeight: '800',
+    color: colors.text,
+  },
+  headerDivider: {
+    width: 1,
+    alignSelf: 'stretch',
+    backgroundColor: colors.border,
+    marginHorizontal: spacing.sm,
+  },
+  helperBlock: {
+    flex: 1,
+  },
+  helperText: {
+    fontSize: typography.bodySize,
+    fontFamily: Platform.select({
+      ios: 'AvenirNext-DemiBold',
+      android: 'sans-serif-medium',
+      default: undefined,
+    }),
+    color: colors.textMuted,
+    lineHeight: 22,
   },
   timerBlock: {
     alignItems: 'center',
@@ -276,15 +300,6 @@ const styles = StyleSheet.create({
   },
   actionButton: {
     flex: 1,
-  },
-  undoRow: {
-    marginBottom: spacing.md,
-  },
-  startRow: {
-    marginBottom: spacing.sm,
-  },
-  fullWidthButton: {
-    width: '100%',
   },
   scoresRow: {
     flexDirection: 'row',
